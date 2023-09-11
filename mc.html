@@ -1,0 +1,176 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+    <meta charset="UTF-8">  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+    <title>Monte Carlo Simulation</title>  
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.4.5/math.min.js"></script>  
+    <style>  
+        * {
+            font-family: sans-serif;
+        }
+        .flex-container {  
+            display: flex;  
+            flex-wrap: wrap;  
+        }  
+        .flex-item {  
+            flex: 1;  
+            padding: 10px;  
+            line-height: 50%;
+        }  
+    </style>  
+</head>  
+<body>  
+    <h1>Monte Carlo Simulation</h1>  
+    <div class="flex-container">  
+        <div class="flex-item">  
+            <form id="inputForm">  
+                <label for="initialInvestment">Anfangskapital:</label>  
+                <input type="number" id="initialInvestment" value="386708.08">  
+                <br>  
+                <label for="years">Jahre:</label>  
+                <input type="number" id="years" value="30">  
+                <br>  
+                <label for="annualInterest">Rendite p.a. (%):</label>  
+                <input type="number" id="annualInterest" value="5">  
+                <br>  
+                <label for="annualStdDev">Rendite Standardabweichung (%):</label>  
+                <input type="number" id="annualStdDev" value="15">  
+                <br>  
+                <label for="numSimulations">Simulationen:</label>  
+                <input type="number" id="numSimulations" value="100000">  
+                <br>  
+                <label for="annualWithdrawal">Entnahme p.a.:</label>  
+                <input type="number" id="annualWithdrawal" value="6000">  
+                <br>  
+                <label for="inflationRate">Inflation (%):</label>  
+                <input type="number" id="inflationRate" value="2">  
+                <br>  
+                <label for="inflationStdDev">Inflation Standardabweichung (%):</label>  
+                <input type="number" id="inflationStdDev" value="1.5">  
+                <br>  
+                <label for="autoAdjustWithdrawal">Inflationsanpassung Entnahme:</label>  
+                <input type="checkbox" id="autoAdjustWithdrawal" checked>  
+                <br>  
+                <button type="button" id="calculateBtn">Berechnen</button>  
+            </form>  
+        </div>  
+        <div class="flex-item" id="results"></div>  
+        <div class="flex-item" id="percentiles"></div> 
+    </div>  
+    <div id="monteCarloChart"></div>  
+    <script>  
+        function randomNormal(mean, stdDev) {  
+            const u1 = Math.random();  
+            const u2 = Math.random();  
+            const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);  
+            return z0 * stdDev + mean;  
+        }  
+  
+        function filterBins(data, threshold) {  
+            const filteredData = [];  
+            for (let i = 0; i < data.length; i++) {  
+                if (data[i].y >= threshold) {  
+                    filteredData.push(data[i]);  
+                }  
+            }  
+            return filteredData;  
+        }  
+  
+        function calculate() {  
+            const initialInvestment = parseFloat(document.getElementById("initialInvestment").value);  
+            const years = parseInt(document.getElementById("years").value);  
+            const annualInterest = parseFloat(document.getElementById("annualInterest").value);  
+            const annualStdDev = parseFloat(document.getElementById("annualStdDev").value);  
+            const numSimulations = parseInt(document.getElementById("numSimulations").value);  
+            const annualWithdrawal = parseFloat(document.getElementById("annualWithdrawal").value);  
+            const inflationRate = parseFloat(document.getElementById("inflationRate").value);  
+            const inflationStdDev = parseFloat(document.getElementById("inflationStdDev").value);  
+            const autoAdjustWithdrawal = document.getElementById("autoAdjustWithdrawal").checked;     
+  
+            let finalBalances = [];  
+            let negativeSimulations = 0;  
+            let totalWithdrawalsSum = 0;  
+  
+            for (let i = 0; i < numSimulations; i++) {  
+                let balance = initialInvestment;  
+                let currentWithdrawal = annualWithdrawal;  
+                for (let j = 0; j < years; j++) {  
+                    let interest = randomNormal(annualInterest / 100, annualStdDev / 100);  
+                    let yearlyInflation = randomNormal(inflationRate / 100, inflationStdDev / 100);  
+                    balance *= (1 + interest - yearlyInflation);  
+                    balance -= currentWithdrawal;  
+                    totalWithdrawalsSum += currentWithdrawal;  
+                    if (autoAdjustWithdrawal) {  
+                        currentWithdrawal *= (1 + yearlyInflation);  
+                    }  
+                    if (balance < 0) {  
+                        balance = 0;  
+                    }  
+                }  
+                finalBalances.push(balance);  
+                if (balance === 0) {  
+                    negativeSimulations += 1;  
+                }  
+            }  
+  
+            const mean = math.mean(finalBalances);  
+            const median = math.median(finalBalances);
+
+            const percentiles = [5, 25, 50, 75, 95];  
+            const percentileResults = percentiles.map(p => math.quantileSeq(finalBalances, p / 100));
+  
+            const results = `  
+                <p><b>Ergebnisse nach Simulation</b></p>  
+                <p>Durchschnittliches Restkapital: ${mean.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€</p>  
+                <p>Median Restpakital: ${median.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€</p>  
+                <p>Gesamte Entnahme: ${(totalWithdrawalsSum / numSimulations).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€</p>  
+                <p>Jährliche Entnahme: ${(totalWithdrawalsSum / numSimulations / years).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€</p>  
+                <p>Monatliche Entnahme: ${(totalWithdrawalsSum / numSimulations / (years * 12)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€</p>  
+                <p>Ausfallrate: ${((negativeSimulations / numSimulations) * 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</p>  
+            `;  
+            document.getElementById("results").innerHTML = results;  
+
+            const percentilesResults = `  
+                <p><b>Prozentile Restkapital</b></p>  
+                ${percentiles.map((p, i) => `<p>${p}%: ${percentileResults[i].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€</p>`).join('')}  
+            `;  
+            document.getElementById("percentiles").innerHTML = percentilesResults;  
+  
+            const maxFinalBalance = Math.max(...finalBalances);  
+  
+            const data = [{  
+                x: finalBalances,  
+                type: 'histogram',  
+                nbinsx: 200,  
+                histnorm: 'probability',  
+                marker: { color: 'rgba(75, 192, 192, 0.6)' },
+                hovertemplate: 'Endkapital: %{x:.2f}<br>Eintrittswahrscheinlichkeit: %{y:.2%}<extra></extra>' // Updated line  
+            }];  
+  
+            const layout = {  
+                title: 'Monte Carlo Simulation Histogram',  
+                xaxis: {  
+                    title: 'Endkapital',  
+                    range: [0, maxFinalBalance],  
+                },  
+                yaxis: { title: 'Eintrittswahrscheinlichkeit', tickformat: ',.0%' },  
+                hovermode: 'x', // Add this line  
+                transforms: [{  
+                    type: 'filter',  
+                    target: 'y',  
+                    operation: '>=',  
+                    value: 0.001  
+                }]  
+            };  
+  
+            Plotly.newPlot('monteCarloChart', data, layout);  
+
+            
+        }  
+  
+        document.getElementById("calculateBtn").addEventListener("click", calculate);  
+    </script>  
+</body>  
+</html>  
